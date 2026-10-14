@@ -1,99 +1,121 @@
 # Port Scanner
 
-Client-server application that compares port scan results: the server scans only `127.0.0.1`, the Android client scans the same host from the outside.
+Клиент–серверное приложение для сравнения результатов проверки портов: сервер сканирует только **локальный** `127.0.0.1` на своей машине, Android-клиент — тот же IP **снаружи** (с устройства в сети).
 
-## Goal
+## Зачем это нужно
 
-Detect differences between local and external port accessibility (NAT, firewall, port forwarding).
+Показать расхождения между «как порт виден на сервере локально» и «как его видит клиент извне» — типичные случаи: NAT, файрвол, проброс портов.
 
-## Repository structure
-
-**Current**
+## Структура репозитория
 
 ```
 port-scanner/
 ├── README.md
 ├── ROADMAP.md
-└── prompts/
+├── server/
+│   └── server.py              # HTTP-сервер сканирования (Python 3)
+├── android/                     # проект Android Studio (Kotlin)
+├── scripts/
+│   └── integration_check.py   # проверка API против запущенного сервера
+└── prompts/                     # полные спецификации и контракт API
     ├── 00_overview.md
     ├── 01_server.md
     ├── 02_android_client.md
     └── 03_integration.md
 ```
 
-**Planned**
+Подробная сборка Android: [android/BUILD.md](android/BUILD.md).
 
-```
-port-scanner/
-├── server/
-│   └── server.py
-└── android/
-    └── (Android Studio project)
-```
+## Быстрый старт
 
-## Quick start
+### Сервер
 
-### Server
-
-Requirements: Python 3, Ubuntu (or any host with Python 3).
+**Требования:** Python 3 (Ubuntu или любая ОС с Python 3).
 
 ```bash
+cd server
 python3 server.py
 ```
 
-Run from the `server/` directory (when `server.py` is added).
+Сервер слушает порт **8080** на всех интерфейсах. Остановка: **Ctrl+C**.
 
-Listens on port `8080`. Stop with `Ctrl+C`.
+Сканирование всегда выполняется только на `127.0.0.1` хоста, где запущен `server.py`.
 
-### Android client
+### Android-клиент
 
-Requirements: Android 8+ (minSdk 26), Android Studio.
+**Требования:** Android 8+ (minSdk 26), Android Studio, JDK 17.
 
-1. Open the `android/` project in Android Studio.
-2. Build and install on a device or emulator.
-3. Ensure the device can reach the server (same network or routed access).
+1. Откройте папку `android/` в Android Studio.
+2. Соберите и установите приложение на устройство или эмулятор.
+3. Убедитесь, что устройство достучится до сервера по сети (тот же LAN или маршрут до `IP:8080`).
 
-## Basic usage
+## Как пользоваться
 
-1. Start the server on the machine whose ports you want to check locally.
-2. In the app, enter the server IP, bearer token, and ports (e.g. `22, 80, 443`).
-3. Tap run. The app requests a server scan and scans the same ports from the device.
-4. Read the comparison in the system notification (not on the main screen).
+1. Запустите сервер на машине, чьи локальные порты нужно проверить.
+2. В приложении укажите **IP или домен сервера**, **мастер-секрет** (по умолчанию `my_secret_123`) и порты, например `22, 80, 443`.
+3. Нажмите **«Запустить проверку»**. Параллельно идут запрос к серверу и клиентское сканирование с телефона.
+4. Результат сравнения — **только в системном уведомлении** (на главном экране списка портов нет).
 
-Example notification line:
+Пример строки в уведомлении:
 
 ```
-Port 80: Server OPEN, Client CLOSED → blocked by NAT/firewall
+Порт 80: Сервер OPEN, Клиент CLOSED → ⚠️ Заблокирован файрволом/NAT!
 ```
 
-## API (short)
+На Android 13+ может потребоваться разрешение на уведомления.
 
-| Item | Value |
-|------|--------|
-| Endpoint | `POST http://<IP>:8080/scan` |
-| Auth | `Authorization: Bearer <time_limited_token>` (SHA-256 of `my_secret_123:window_id`, 6h windows; see [prompts/00_overview.md](prompts/00_overview.md)) |
-| Body | `{"ports": [22, 80, 443]}` |
-| Success | `200` — `{"results": {"22": "OPEN", "80": "CLOSED", ...}}` |
-| Port status | `"OPEN"` or `"CLOSED"` only |
-| Errors | `401` Unauthorized, `400` Bad Request — `{"error": "..."}` |
+## Авторизация (временной Bearer-токен)
 
-Full contract: [prompts/00_overview.md](prompts/00_overview.md).
+Общий мастер-секрет в коде: `SECRET_TOKEN = "my_secret_123"`. В заголовке HTTP передаётся **не** он сам, а производный токен:
 
-## Documentation
+```
+Authorization: Bearer <time_limited_token>
+```
 
-| Document | Description |
-|----------|-------------|
-| [ROADMAP.md](ROADMAP.md) | Development plan and checklist |
-| [prompts/00_overview.md](prompts/00_overview.md) | API contract and overview |
-| [prompts/01_server.md](prompts/01_server.md) | Server specification |
-| [prompts/02_android_client.md](prompts/02_android_client.md) | Android client specification |
-| [prompts/03_integration.md](prompts/03_integration.md) | Integration test scenarios |
+| Параметр | Значение |
+|----------|----------|
+| Длина окна | `6 * 3600` секунд (6 часов) |
+| `window_id` | `floor(unix_время_сек / 21600)` |
+| Токен | `SHA-256( SECRET_TOKEN + ":" + str(window_id) )` в виде **lowercase hex** (64 символа) |
 
-## Status
+Сервер принимает токен **текущего** и **предыдущего** окна (чтобы не отбрасывать запросы на границе 6 часов). Клиент вычисляет токен сам перед каждым запросом; в поле ввода указывается мастер-секрет.
 
-Specification only — server and Android code are under development.
+Полное описание: [prompts/00_overview.md](prompts/00_overview.md).
 
-| Component | Stack |
-|-----------|--------|
-| Server | Python 3, Ubuntu |
-| Client | Android 8+ (minSdk 26), Kotlin |
+## API (кратко)
+
+| Параметр | Значение |
+|----------|----------|
+| Метод и URL | `POST http://<IP>:8080/scan` |
+| Тело | `{"ports": [22, 80, 443]}` (макс. 30 портов, каждый 1..65535) |
+| Успех | `200`, тело `{"results": {"22": "OPEN", "80": "CLOSED", ...}}` |
+| Статусы портов | только `"OPEN"` или `"CLOSED"` |
+| Ошибки | `401` — неверный токен; `400` — `{"error": "..."}` |
+| Content-Type | `application/json; charset=utf-8` |
+
+Ключ `host` в JSON игнорируется — сервер всё равно сканирует только свой `127.0.0.1`.
+
+## Проверка сервера
+
+При запущенном `server.py`:
+
+```bash
+python3 scripts/integration_check.py
+```
+
+## Документация
+
+| Файл | Содержание |
+|------|------------|
+| [ROADMAP.md](ROADMAP.md) | План разработки и чеклист |
+| [prompts/00_overview.md](prompts/00_overview.md) | Общий контракт API |
+| [prompts/01_server.md](prompts/01_server.md) | Спецификация сервера |
+| [prompts/02_android_client.md](prompts/02_android_client.md) | Спецификация Android-клиента |
+| [prompts/03_integration.md](prompts/03_integration.md) | Сценарии интеграционного тестирования |
+
+## Стек
+
+| Компонент | Технологии |
+|-----------|------------|
+| Сервер | Python 3, стандартная библиотека (`http.server`, `socket`, `hashlib`) |
+| Клиент | Android 8+ (minSdk 26), Kotlin, `HttpURLConnection` |
