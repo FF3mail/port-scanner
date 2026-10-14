@@ -71,7 +71,7 @@ Port 80: Server OPEN, Client CLOSED → blocked by NAT/firewall
 | Item | Value |
 |------|--------|
 | Endpoint | `POST http://<IP>:8080/scan` |
-| Auth | `Authorization: Bearer <token>` |
+| Auth | `Authorization: Bearer <time_limited_token>` (SHA-256 of `my_secret_123:window_id`, 6h windows; see [prompts/00_overview.md](prompts/00_overview.md)) |
 | Body | `{"ports": [22, 80, 443]}` |
 | Success | `200` — `{"results": {"22": "OPEN", "80": "CLOSED", ...}}` |
 | Port status | `"OPEN"` or `"CLOSED"` only |

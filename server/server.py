@@ -4,14 +4,17 @@
 Спецификация: prompts/01_server.md
 """
 
+import hashlib
 import http.server
 import json
 import signal
 import socket
 import sys
+import time
 
 # --- Константы (обязательные) ---
-SECRET_TOKEN = "my_secret_123"
+SECRET_TOKEN = "my_secret_123"  # мастер-секрет (не передаётся в заголовке как есть)
+TOKEN_VALIDITY_SECONDS = 6 * 3600  # окно действия Bearer-токена (6 часов)
 SCAN_TIMEOUT = 1.0  # секунды на один порт
 MAX_PORTS = 30  # жёсткий лимит количества портов
 
@@ -34,6 +37,41 @@ def _is_valid_port(value) -> bool:
     return isinstance(value, int) and not isinstance(value, bool) and 1 <= value <= 65535
 
 
+def _token_window_id(unix_timestamp: int) -> int:
+    """Номер 6-часового окна для Unix-времени в секундах."""
+    return unix_timestamp // TOKEN_VALIDITY_SECONDS
+
+
+def generate_time_limited_token(
+    master_secret: str = SECRET_TOKEN,
+    window_id: int | None = None,
+    unix_timestamp: int | None = None,
+) -> str:
+    """
+    Детерминированный Bearer-токен: SHA-256(master_secret + ':' + str(window_id)), hex.
+    По умолчанию — токен для текущего окна.
+    """
+    if window_id is None:
+        if unix_timestamp is None:
+            unix_timestamp = int(time.time())
+        window_id = _token_window_id(unix_timestamp)
+    digest = hashlib.sha256(f"{master_secret}:{window_id}".encode("utf-8")).hexdigest()
+    return digest
+
+
+def _accepted_bearer_tokens(master_secret: str = SECRET_TOKEN, unix_timestamp: int | None = None) -> frozenset[str]:
+    """Токены текущего и предыдущего окна (граница смены окна)."""
+    if unix_timestamp is None:
+        unix_timestamp = int(time.time())
+    window_id = _token_window_id(unix_timestamp)
+    return frozenset(
+        {
+            generate_time_limited_token(master_secret, window_id=window_id),
+            generate_time_limited_token(master_secret, window_id=window_id - 1),
+        }
+    )
+
+
 class ScanRequestHandler(http.server.BaseHTTPRequestHandler):
     """Обработчик POST /scan с Bearer-авторизацией."""
 
@@ -49,8 +87,10 @@ class ScanRequestHandler(http.server.BaseHTTPRequestHandler):
 
     def _check_authorization(self) -> bool:
         auth_header = self.headers.get("Authorization", "")
-        expected = f"Bearer {SECRET_TOKEN}"
-        return auth_header == expected
+        if not auth_header.startswith("Bearer "):
+            return False
+        presented = auth_header[len("Bearer ") :]
+        return presented in _accepted_bearer_tokens()
 
     def _read_json_body(self) -> tuple[dict | None, str | None]:
         """Читает и парсит JSON; при ошибке возвращает (None, сообщение)."""

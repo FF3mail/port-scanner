@@ -4,20 +4,33 @@
 server.py
 
 ## Жёсткие требования
-- Только стандартная библиотека: http.server, socket, json, signal, sys
+- Только стандартная библиотека: http.server, socket, json, signal, sys, hashlib, time
 - Однопоточный HTTPServer (запрещено использовать ThreadingMixIn)
 - Порт: 8080
 - Запуск: python3 server.py
 - Корректное завершение по Ctrl+C (обработчик SIGINT)
 
 ## Константы (обязательно)
-SECRET_TOKEN = "my_secret_123"
+SECRET_TOKEN = "my_secret_123"   # мастер-секрет (не отправляется клиентом в заголовке как есть)
+TOKEN_VALIDITY_SECONDS = 6 * 3600  # 21600 с — длина окна Bearer-токена
 SCAN_TIMEOUT = 1.0          # секунды на один порт
 MAX_PORTS = 30              # жёсткий лимит количества портов
 
-## Авторизация
-Заголовок: Authorization: Bearer my_secret_123
-Любое несовпадение токена → HTTP 401 + тело {"error": "Unauthorized"}
+## Авторизация (временной Bearer-токен)
+
+Заголовок: `Authorization: Bearer <token>`, где `<token>` — **не** сам `SECRET_TOKEN`, а производное значение для текущего временного окна.
+
+### Алгоритм (детерминированный, совпадает с Android-клиентом)
+
+1. `window_id = floor(unix_timestamp_seconds / TOKEN_VALIDITY_SECONDS)`
+2. `token = SHA-256( SECRET_TOKEN + ":" + str(window_id) )` в виде **lowercase hex** (64 символа)
+
+Пример (псевдокод): при `window_id = 42` хешируется строка `"my_secret_123:42"`.
+
+### Проверка на сервере
+
+- Принимаются токены **текущего** окна и **предыдущего** (чтобы запросы на границе смены 6-часового окна не отклонялись).
+- Любое несовпадение → HTTP 401 + тело `{"error": "Unauthorized"}`
 
 ## Эндпоинт
 POST /scan

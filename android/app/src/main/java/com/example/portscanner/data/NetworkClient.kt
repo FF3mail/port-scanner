@@ -14,6 +14,7 @@ import java.net.Socket
 import java.net.SocketTimeoutException
 import java.net.URL
 import java.net.UnknownHostException
+import java.security.MessageDigest
 
 class ServerUnreachableException : IOException("Server unreachable")
 
@@ -29,7 +30,8 @@ class NetworkClient {
     suspend fun postScan(ip: String, token: String, ports: List<Int>): ScanResult = withContext(Dispatchers.IO) {
         val connection = openPostConnection(ip)
         try {
-            connection.setRequestProperty("Authorization", "Bearer $token")
+            val bearerToken = generateTimeLimitedToken(token)
+            connection.setRequestProperty("Authorization", "Bearer $bearerToken")
             connection.setRequestProperty("Content-Type", "application/json; charset=utf-8")
             connection.doOutput = true
 
@@ -132,5 +134,22 @@ class NetworkClient {
         const val CONNECT_TIMEOUT_MS = 3000L
         const val PORT_TIMEOUT_MS = 1500L
         const val MAX_PORTS = 30
+        const val TOKEN_VALIDITY_SECONDS = 6 * 3600L
+        const val SECRET_TOKEN = "my_secret_123"
+
+        /**
+         * Тот же алгоритм, что на сервере: SHA-256(master_secret + ":" + window_id), lowercase hex.
+         * window_id = floor(unix_seconds / TOKEN_VALIDITY_SECONDS).
+         */
+        fun generateTimeLimitedToken(
+            masterSecret: String = SECRET_TOKEN,
+            unixSeconds: Long = System.currentTimeMillis() / 1000L,
+        ): String {
+            val windowId = unixSeconds / TOKEN_VALIDITY_SECONDS
+            val payload = "$masterSecret:$windowId"
+            val digest = MessageDigest.getInstance("SHA-256")
+                .digest(payload.toByteArray(Charsets.UTF_8))
+            return digest.joinToString("") { byte -> "%02x".format(byte) }
+        }
     }
 }

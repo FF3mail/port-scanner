@@ -70,6 +70,8 @@ MAX_PORTS = 30
 - suspend fun postScan(ip: String, token: String, ports: List<Int>): ScanResponse
 - suspend fun scanPorts(ip: String, ports: List<Int>): Map<Int, String>
 
+Параметр `token` в postScan — **мастер-секрет** (`SECRET_TOKEN = "my_secret_123"`). Перед запросом клиент вычисляет временной Bearer-токен тем же алгоритмом, что сервер: `SHA-256(master_secret + ":" + window_id)` (hex), где `window_id = floor(unix_seconds / (6*3600))`. В заголовок уходит `Authorization: Bearer <вычисленный_токен>`.
+
 Оба метода обязательно выполнять в withContext(Dispatchers.IO).
 Статусы портов строго "OPEN" или "CLOSED".
 

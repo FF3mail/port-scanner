@@ -19,17 +19,30 @@ import urllib.request
 HOST = "127.0.0.1"
 PORT = 8080
 BASE = f"http://{HOST}:{PORT}/scan"
-TOKEN = "my_secret_123"
+
+# Must match server/server.py
+SECRET_TOKEN = "my_secret_123"
+TOKEN_VALIDITY_SECONDS = 6 * 3600
+
+
+def current_bearer_token(secret: str = SECRET_TOKEN) -> str:
+    import hashlib
+    import time
+
+    window_id = int(time.time()) // TOKEN_VALIDITY_SECONDS
+    return hashlib.sha256(f"{secret}:{window_id}".encode("utf-8")).hexdigest()
 
 
 def post_scan(
     ports: list[int],
-    token: str = TOKEN,
+    token: str | None = None,
     host: str = HOST,
     port: int = PORT,
     timeout: float = 5,
     extra_body: dict | None = None,
 ) -> tuple[int, dict]:
+    if token is None:
+        token = current_bearer_token()
     url = f"http://{host}:{port}/scan"
     payload = {"ports": ports}
     if extra_body:
