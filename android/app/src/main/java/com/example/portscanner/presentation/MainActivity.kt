@@ -32,11 +32,17 @@ class MainActivity : AppCompatActivity() {
         ActivityResultContracts.RequestPermission(),
     ) { granted ->
         if (!granted) {
-            Toast.makeText(this, "Разрешение на уведомления не выдано", Toast.LENGTH_SHORT).show()
+            Toast.makeText(
+                this,
+                "Результаты показываются только в уведомлениях; нужно разрешение POST_NOTIFICATIONS",
+                Toast.LENGTH_LONG,
+            ).show()
         }
         pendingNotification?.let { payload ->
             if (granted) {
-                showNotificationIfAllowed(payload)
+                if (!showNotificationIfAllowed(payload)) {
+                    Toast.makeText(this, "Уведомления отключены", Toast.LENGTH_SHORT).show()
+                }
             }
             pendingNotification = null
         }

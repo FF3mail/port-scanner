@@ -135,14 +135,20 @@ class NetworkClient {
         const val PORT_TIMEOUT_MS = 1500L
         const val MAX_PORTS = 30
         const val TOKEN_VALIDITY_SECONDS = 6 * 3600L
-        const val SECRET_TOKEN = "my_secret_123"
+
+        /**
+         * Demo master secret documented in prompts/00_overview.md.
+         * Not used for live scan requests — callers must pass the UI-entered secret.
+         */
+        const val DEMO_SECRET_TOKEN = "my_secret_123"
 
         /**
          * Тот же алгоритм, что на сервере: SHA-256(master_secret + ":" + window_id), lowercase hex.
          * window_id = floor(unix_seconds / TOKEN_VALIDITY_SECONDS).
+         * Requires an explicit master secret (from UI); no hardcoded fallback for live scans.
          */
         fun generateTimeLimitedToken(
-            masterSecret: String = SECRET_TOKEN,
+            masterSecret: String,
             unixSeconds: Long = System.currentTimeMillis() / 1000L,
         ): String {
             val windowId = unixSeconds / TOKEN_VALIDITY_SECONDS

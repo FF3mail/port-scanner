@@ -2,7 +2,7 @@
 <resources>
     <string name="app_name">Port Scanner</string>
     <string name="hint_server_ip">IP или домен сервера</string>
-    <string name="hint_token">Токен авторизации</string>
+    <string name="hint_token">Мастер-секрет (например my_secret_123)</string>
     <string name="hint_ports">Порты (22, 80, 443)</string>
     <string name="button_start_scan">Запустить проверку</string>
 </resources>
