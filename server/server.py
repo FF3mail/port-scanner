@@ -7,13 +7,15 @@
 import hashlib
 import http.server
 import json
+import os
 import signal
 import socket
 import sys
 import time
 
 # --- Константы (обязательные) ---
-SECRET_TOKEN = "my_secret_123"  # мастер-секрет (не передаётся в заголовке как есть)
+# Demo default kept for backward compatibility; prefer SECRET_TOKEN env in production.
+SECRET_TOKEN = os.environ.get("SECRET_TOKEN", "my_secret_123")
 TOKEN_VALIDITY_SECONDS = 6 * 3600  # окно действия Bearer-токена (6 часов)
 SCAN_TIMEOUT = 1.0  # секунды на один порт
 MAX_PORTS = 30  # жёсткий лимит количества портов
@@ -119,26 +121,7 @@ class ScanRequestHandler(http.server.BaseHTTPRequestHandler):
 
     def _validate_ports(self, data: dict) -> tuple[list[int] | None, str | None]:
         """Валидация списка ports; ключ host игнорируется."""
-        if "ports" not in data:
-            return None, "Missing ports field"
-
-        ports = data["ports"]
-        if not isinstance(ports, list):
-            return None, "ports must be a list"
-
-        if len(ports) == 0:
-            return None, "ports must not be empty"
-
-        if len(ports) > MAX_PORTS:
-            return None, f"Too many ports (max {MAX_PORTS})"
-
-        validated: list[int] = []
-        for item in ports:
-            if not _is_valid_port(item):
-                return None, "Each port must be an integer from 1 to 65535"
-            validated.append(item)
-
-        return validated, None
+        return validate_ports_payload(data)
 
     def do_POST(self) -> None:
         if self.path != "/scan":
@@ -183,7 +166,41 @@ class ScanRequestHandler(http.server.BaseHTTPRequestHandler):
         sys.stderr.write("%s - %s\n" % (self.log_date_time_string(), format % args))
 
 
+def validate_ports_payload(data: dict) -> tuple[list[int] | None, str | None]:
+    """
+    Pure port-list validation mirrored from ScanRequestHandler._validate_ports.
+    Extracted for unit tests without binding a socket.
+    """
+    if "ports" not in data:
+        return None, "Missing ports field"
+
+    ports = data["ports"]
+    if not isinstance(ports, list):
+        return None, "ports must be a list"
+
+    if len(ports) == 0:
+        return None, "ports must not be empty"
+
+    if len(ports) > MAX_PORTS:
+        return None, f"Too many ports (max {MAX_PORTS})"
+
+    validated: list[int] = []
+    for item in ports:
+        if not _is_valid_port(item):
+            return None, "Each port must be an integer from 1 to 65535"
+        validated.append(item)
+
+    return validated, None
+
+
 def main() -> None:
+    # Intentional single-threaded HTTPServer (no ThreadingMixIn per prompts/01_server.md).
+    worst_case = MAX_PORTS * SCAN_TIMEOUT
+    sys.stderr.write(
+        "WARNING: single-threaded server; worst-case scan latency ≈ "
+        f"{MAX_PORTS} * {SCAN_TIMEOUT}s = {worst_case:.0f}s when many ports are closed/filtered\n"
+    )
+
     httpd = http.server.HTTPServer((LISTEN_HOST, LISTEN_PORT), ScanRequestHandler)
 
     def graceful_shutdown(signum, frame) -> None:
