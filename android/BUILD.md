@@ -31,3 +31,8 @@ APK: `app/build/outputs/apk/debug/app-debug.apk`
 5. Read the comparison in the system notification.
 
 Device and server must be on a network where HTTP port 8080 is reachable.
+
+## HTTP timeouts (`NetworkClient`)
+
+- **Connect timeout:** `CONNECT_TIMEOUT_MS` (3 s) — time to establish TCP to the server.
+- **Read timeout:** `HTTP_READ_TIMEOUT_MS` (35 s with current constants) — waiting for the `/scan` response body while the server may scan up to 30 ports at 1 s each, plus a 5 s safety margin. This is not a guarantee under every network or OS condition.

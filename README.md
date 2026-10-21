@@ -54,6 +54,8 @@ python3 server.py
 
 **Требования:** Android 8+ (minSdk 26), Android Studio, JDK 17.
 
+**HTTP-таймауты:** соединение — 3 с (`CONNECT_TIMEOUT_MS`); ожидание ответа `/scan` — `HTTP_READ_TIMEOUT_MS` (≈ 30 с худший случай сканирования на сервере + запас). Подробнее: [android/BUILD.md](android/BUILD.md).
+
 1. Откройте папку `android/` в Android Studio.
 2. Соберите и установите приложение на устройство или эмулятор.
 3. Убедитесь, что устройство достучится до сервера по сети (тот же LAN или маршрут до `IP:8080`).
