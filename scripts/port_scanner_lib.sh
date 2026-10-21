@@ -115,8 +115,23 @@ raise SystemExit(0 if wait_for_tcp_port(host, port, timeout) else 1)
 ' "${PORT_SCANNER_LISTEN_HOST}" "${PORT_SCANNER_LISTEN_PORT}" "${PORT_SCANNER_START_TIMEOUT}"
 }
 
+port_scanner_validate_master_secret() {
+  local secret="$1"
+  PYTHONPATH="$(port_scanner_scripts_dir)" python3 -c '
+import sys
+from port_scanner_runtime import validate_master_secret_value
+try:
+    validate_master_secret_value(sys.argv[1])
+except ValueError as exc:
+    print(str(exc), file=sys.stderr)
+    raise SystemExit(1)
+' "${secret}"
+}
+
 port_scanner_stop_managed() {
   local pid
+  local int_wait=0
+  local used_sigterm=0
   if ! pid="$(port_scanner_read_pid_file)"; then
     echo "No managed server PID file; nothing to stop." >&2
     return 1
@@ -127,17 +142,25 @@ port_scanner_stop_managed() {
   fi
   kill -INT "${pid}" 2>/dev/null || true
   local waited=0
-  while port_scanner_pid_running "${pid}" && (( waited < PORT_SCANNER_STOP_TIMEOUT )); do
-    sleep 1
-    waited=$((waited + 1))
+  while port_scanner_pid_running "${pid}" && (( int_wait < 50 )); do
+    sleep 0.2
+    int_wait=$((int_wait + 1))
   done
   if port_scanner_pid_running "${pid}"; then
+    used_sigterm=1
     kill -TERM "${pid}" 2>/dev/null || true
-    sleep 2
+    waited=0
+    while port_scanner_pid_running "${pid}" && (( waited < PORT_SCANNER_STOP_TIMEOUT )); do
+      sleep 1
+      waited=$((waited + 1))
+    done
   fi
   if port_scanner_pid_running "${pid}"; then
-    echo "Managed server did not exit within ${PORT_SCANNER_STOP_TIMEOUT}s." >&2
+    echo "Managed server did not exit within bounded stop timeout." >&2
     return 1
+  fi
+  if (( used_sigterm )); then
+    echo "Warning: managed server required SIGTERM after SIGINT did not stop it promptly." >&2
   fi
   rm -f "${PORT_SCANNER_PID_FILE}"
   return 0

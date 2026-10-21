@@ -83,6 +83,38 @@ class RotateSecretTokenTest(unittest.TestCase):
         old_status = runtime.post_scan_status("127.0.0.1", int(self.port), backup_before)
         self.assertEqual(old_status, 401)
 
+    def test_invalid_custom_secret_leaves_server_unchanged(self) -> None:
+        run_script("port_scanner_ctl.sh", "init", env=self.env)
+        run_script("port_scanner_ctl.sh", "start", env=self.env)
+        original = runtime.read_secret_file(self.state_dir / "secret.env")
+
+        bad_env = {**self.env, "PORT_SCANNER_TEST_CUSTOM_SECRET": "invalid secret value"}
+        rotate = run_script("rotate_secret_token.sh", "--custom", env=bad_env)
+        self.assertNotEqual(rotate.returncode, 0)
+        self.assertIn("invalid", rotate.stderr.lower())
+
+        self.assertEqual(runtime.read_secret_file(self.state_dir / "secret.env"), original)
+        self.assertEqual(run_script("port_scanner_ctl.sh", "status", env=self.env).returncode, 0)
+        self.assertEqual(
+            runtime.post_scan_status("127.0.0.1", int(self.port), original),
+            200,
+        )
+
+    def test_valid_custom_secret_rotation(self) -> None:
+        run_script("port_scanner_ctl.sh", "init", env=self.env)
+        run_script("port_scanner_ctl.sh", "start", env=self.env)
+        original = runtime.read_secret_file(self.state_dir / "secret.env")
+        custom = "CustomMasterSecretForRotationTest99"
+
+        rotate = run_script(
+            "rotate_secret_token.sh",
+            env={**self.env, "PORT_SCANNER_TEST_CUSTOM_SECRET": custom},
+        )
+        self.assertEqual(rotate.returncode, 0, rotate.stderr + rotate.stdout)
+        self.assertEqual(runtime.read_secret_file(self.state_dir / "secret.env"), custom)
+        self.assertEqual(runtime.post_scan_status("127.0.0.1", int(self.port), custom), 200)
+        self.assertEqual(runtime.post_scan_status("127.0.0.1", int(self.port), original), 401)
+
     def test_rotate_fails_when_server_not_running(self) -> None:
         run_script("port_scanner_ctl.sh", "init", env=self.env)
         result = run_script("rotate_secret_token.sh", env=self.env)

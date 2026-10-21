@@ -44,7 +44,11 @@ The production launch path **refuses** the demo secret `my_secret_123` unless `P
 | `server.meta` | Repo path and `server.py` path for PID verification |
 | `server.log` | Server stderr/stdout from `nohup` |
 
-Stop: `./scripts/port_scanner_ctl.sh stop` (SIGINT, then SIGTERM; only if `/proc/PID/cmdline` matches this repo’s `server/server.py`).
+Stop: `./scripts/port_scanner_ctl.sh stop` sends **SIGINT** first (server handles SIGINT/SIGTERM by scheduling `HTTPServer.shutdown()` on a background thread to avoid deadlock), waits up to ~10s, then **SIGTERM** if needed. A warning is printed if SIGTERM was required. Only processes whose `/proc/PID/cmdline` matches this repo’s `server/server.py` are signalled.
+
+### Custom master secrets
+
+Values in `secret.env` must be `SECRET_TOKEN=<value>` where `<value>` is a **single line** with **no whitespace or `#`** (same rules as auto-generated hex secrets). `rotate_secret_token.sh --custom` validates format **before** stopping the server.
 
 ## Rotate master secret (SSH)
 
@@ -88,6 +92,7 @@ Users must enter the **new master secret** in the app (the app derives the 6-hou
 | `PORT_SCANNER_LISTEN_HOST` | `127.0.0.1` | Host for readiness/verify probes |
 | `PORT_SCANNER_ALLOW_DEMO_SECRET` | `0` | Set to `1` to allow demo secret in `secret.env` |
 | `PORT_SCANNER_TEST_VERIFY_FAIL` | `0` | **Tests only** — force verify failure |
+| `PORT_SCANNER_TEST_CUSTOM_SECRET` | unset | **Tests only** — inject custom secret (skips prompt) |
 
 ## Verification commands
 

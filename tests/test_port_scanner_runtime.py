@@ -31,6 +31,17 @@ class TestSecretFile(unittest.TestCase):
             self.assertLessEqual(mode, 0o600)
             self.assertEqual(runtime.read_secret_file(path), "test_secret_value_abc")
 
+    def test_validate_master_secret_rejects_whitespace(self) -> None:
+        with self.assertRaises(ValueError):
+            runtime.validate_master_secret_value("bad secret")
+
+    def test_validate_master_secret_rejects_hash(self) -> None:
+        with self.assertRaises(ValueError):
+            runtime.validate_master_secret_value("secret#comment")
+
+    def test_validate_master_secret_accepts_hex(self) -> None:
+        runtime.validate_master_secret_value(runtime.generate_master_secret())
+
     def test_malformed_secret_file(self) -> None:
         with tempfile_dir() as tmp:
             path = tmp / "bad.env"

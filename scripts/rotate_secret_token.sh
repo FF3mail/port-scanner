@@ -14,6 +14,8 @@ Usage: rotate_secret_token.sh [--custom]
   and verify the new secret works while the previous secret is rejected (HTTP 401).
 
   --custom   Prompt for a custom secret (no echo) instead of auto-generation.
+             Custom values must be a single line without whitespace or # characters
+             (same format as SECRET_TOKEN= in secret.env).
 
 Environment: same as port_scanner_ctl.sh (PORT_SCANNER_STATE_DIR, PORT_SCANNER_LISTEN_PORT, ...).
 
@@ -62,11 +64,10 @@ main() {
     exit 1
   fi
 
-  cp -f "${PORT_SCANNER_SECRET_FILE}" "${PORT_SCANNER_SECRET_BACKUP}"
-  chmod 600 "${PORT_SCANNER_SECRET_BACKUP}"
-
   local new_secret
-  if (( custom )); then
+  if [[ -n "${PORT_SCANNER_TEST_CUSTOM_SECRET:-}" ]]; then
+    new_secret="${PORT_SCANNER_TEST_CUSTOM_SECRET}"
+  elif (( custom )); then
     read -rsp "Enter new master secret: " new_secret
     echo >&2
     read -rsp "Confirm new master secret: " confirm
@@ -75,13 +76,17 @@ main() {
       echo "Secrets do not match. Aborting." >&2
       exit 1
     fi
-    if [[ -z "${new_secret}" ]]; then
-      echo "Empty secret. Aborting." >&2
-      exit 1
-    fi
   else
     new_secret="$(PYTHONPATH="$(port_scanner_scripts_dir)" python3 "$(port_scanner_scripts_dir)/port_scanner_runtime.py" generate-secret)"
   fi
+
+  if ! port_scanner_validate_master_secret "${new_secret}"; then
+    echo "Invalid master secret format. Server was not stopped." >&2
+    exit 1
+  fi
+
+  cp -f "${PORT_SCANNER_SECRET_FILE}" "${PORT_SCANNER_SECRET_BACKUP}"
+  chmod 600 "${PORT_SCANNER_SECRET_BACKUP}"
 
   if ! port_scanner_stop_managed; then
     echo "Failed to stop managed server before rotation." >&2

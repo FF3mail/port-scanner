@@ -23,6 +23,22 @@ from pathlib import Path
 DEMO_SECRET_TOKEN = "my_secret_123"
 TOKEN_VALIDITY_SECONDS = 6 * 3600
 SECRET_LINE_RE = re.compile(r"^SECRET_TOKEN=([^\s#]+)\s*$")
+MASTER_SECRET_VALUE_RE = re.compile(r"^[^\s#]+$")
+
+
+def validate_master_secret_value(secret: str) -> None:
+    """
+    Validate a master secret before persistence or server stop during rotation.
+    Must match the SECRET_TOKEN= single-line file format (no whitespace or #).
+    """
+    if not secret:
+        raise ValueError("Master secret must not be empty")
+    if "\n" in secret or "\r" in secret:
+        raise ValueError("Master secret must be a single line")
+    if not MASTER_SECRET_VALUE_RE.fullmatch(secret):
+        raise ValueError(
+            "Master secret must not contain whitespace or # (see server/DEPLOY_LINUX.md)"
+        )
 
 
 def generate_master_secret() -> str:
@@ -46,8 +62,7 @@ def read_secret_file(path: Path) -> str:
 
 def write_secret_file_atomic(path: Path, secret: str, mode: int = 0o600) -> None:
     """Atomically write SECRET_TOKEN=... with restricted permissions."""
-    if not secret or "\n" in secret:
-        raise ValueError("Invalid secret value")
+    validate_master_secret_value(secret)
     path.parent.mkdir(parents=True, exist_ok=True)
     content = f"SECRET_TOKEN={secret}\n"
     fd, tmp_name = tempfile.mkstemp(prefix=".secret.", dir=path.parent, text=True)
