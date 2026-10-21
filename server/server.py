@@ -21,7 +21,7 @@ SCAN_TIMEOUT = 1.0  # секунды на один порт
 MAX_PORTS = 30  # жёсткий лимит количества портов
 
 LISTEN_HOST = ""  # все интерфейсы
-LISTEN_PORT = 8080
+LISTEN_PORT = int(os.environ.get("PORT_SCANNER_LISTEN_PORT", "8080"))
 SCAN_HOST = "127.0.0.1"
 
 

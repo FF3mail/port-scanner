@@ -10,22 +10,30 @@ Usage:
 from __future__ import annotations
 
 import json
+import os
 import socket
 import sys
 import threading
 import urllib.error
 import urllib.request
 
-HOST = "127.0.0.1"
-PORT = 8080
+HOST = os.environ.get("PORT_SCANNER_LISTEN_HOST", "127.0.0.1")
+PORT = int(os.environ.get("PORT_SCANNER_LISTEN_PORT", "8080"))
 BASE = f"http://{HOST}:{PORT}/scan"
 
-# Must match server/server.py
-SECRET_TOKEN = "my_secret_123"
 TOKEN_VALIDITY_SECONDS = 6 * 3600
 
+# Demo default when env unset (CI/dev); production uses SECRET_TOKEN from environment.
+DEMO_SECRET_TOKEN = "my_secret_123"
 
-def current_bearer_token(secret: str = SECRET_TOKEN) -> str:
+
+def resolve_secret_token() -> str:
+    return os.environ.get("SECRET_TOKEN", DEMO_SECRET_TOKEN)
+
+
+def current_bearer_token(secret: str | None = None) -> str:
+    if secret is None:
+        secret = resolve_secret_token()
     import hashlib
     import time
 
@@ -42,7 +50,7 @@ def post_scan(
     extra_body: dict | None = None,
 ) -> tuple[int, dict]:
     if token is None:
-        token = current_bearer_token()
+        token = current_bearer_token(secret=None)
     url = f"http://{host}:{port}/scan"
     payload = {"ports": ports}
     if extra_body:
