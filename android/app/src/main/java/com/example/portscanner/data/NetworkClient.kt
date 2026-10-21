@@ -86,7 +86,7 @@ class NetworkClient {
         val connection = url.openConnection() as HttpURLConnection
         connection.requestMethod = "POST"
         connection.connectTimeout = CONNECT_TIMEOUT_MS.toInt()
-        connection.readTimeout = CONNECT_TIMEOUT_MS.toInt()
+        connection.readTimeout = HTTP_READ_TIMEOUT_MS.toInt()
         return connection
     }
 
@@ -131,9 +131,33 @@ class NetworkClient {
     }
 
     companion object {
+        /** TCP connect budget for POST /scan (independent of server scan duration). */
         const val CONNECT_TIMEOUT_MS = 3000L
+
+        /**
+         * Per-port connect timeout for client-side socket scans (not the HTTP read timeout).
+         */
         const val PORT_TIMEOUT_MS = 1500L
+
         const val MAX_PORTS = 30
+
+        /**
+         * Matches server `SCAN_TIMEOUT` (1.0 s) in `server/server.py` for worst-case scan math.
+         */
+        const val SERVER_SCAN_TIMEOUT_PER_PORT_MS = 1000L
+
+        /**
+         * Extra headroom beyond sequential server scan time (JSON, scheduling).
+         * Does not guarantee success on every device, network, or OS scheduler.
+         */
+        const val HTTP_READ_SAFETY_MARGIN_MS = 5000L
+
+        /**
+         * HTTP response read timeout for POST /scan while the server scans up to [MAX_PORTS] ports.
+         * Worst-case server work ≈ [MAX_PORTS] × [SERVER_SCAN_TIMEOUT_PER_PORT_MS].
+         */
+        const val HTTP_READ_TIMEOUT_MS =
+            MAX_PORTS * SERVER_SCAN_TIMEOUT_PER_PORT_MS + HTTP_READ_SAFETY_MARGIN_MS
         const val TOKEN_VALIDITY_SECONDS = 6 * 3600L
 
         /**
