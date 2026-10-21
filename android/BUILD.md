@@ -18,6 +18,8 @@ cd android
 ./gradlew assembleDebug
 ```
 
+On Windows, if the project path contains non-ASCII characters (e.g. Cyrillic folder names), `android.overridePathCheck=true` in `gradle.properties` allows Gradle CLI builds to proceed. Prefer an ASCII-only path when possible.
+
 APK: `app/build/outputs/apk/debug/app-debug.apk`
 
 ## Usage
