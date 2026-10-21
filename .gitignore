@@ -8,3 +8,4 @@ venv/
 *.ap_
 local.properties
 .DS_Store
+.port-scanner-state/

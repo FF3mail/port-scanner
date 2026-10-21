@@ -11,6 +11,7 @@ import os
 import signal
 import socket
 import sys
+import threading
 import time
 
 # --- Константы (обязательные) ---
@@ -21,7 +22,7 @@ SCAN_TIMEOUT = 1.0  # секунды на один порт
 MAX_PORTS = 30  # жёсткий лимит количества портов
 
 LISTEN_HOST = ""  # все интерфейсы
-LISTEN_PORT = 8080
+LISTEN_PORT = int(os.environ.get("PORT_SCANNER_LISTEN_PORT", "8080"))
 SCAN_HOST = "127.0.0.1"
 
 
@@ -203,11 +204,13 @@ def main() -> None:
 
     httpd = http.server.HTTPServer((LISTEN_HOST, LISTEN_PORT), ScanRequestHandler)
 
-    def graceful_shutdown(signum, frame) -> None:
-        # Корректное завершение по Ctrl+C (SIGINT)
-        httpd.shutdown()
+    def request_shutdown(signum: int, frame) -> None:
+        # shutdown() must not run on the serve_forever() thread (deadlock). Signal handler
+        # schedules it on a short-lived background thread (SIGINT interactive, SIGTERM from ctl).
+        threading.Thread(target=httpd.shutdown, name="port-scanner-shutdown", daemon=True).start()
 
-    signal.signal(signal.SIGINT, graceful_shutdown)
+    signal.signal(signal.SIGINT, request_shutdown)
+    signal.signal(signal.SIGTERM, request_shutdown)
 
     try:
         httpd.serve_forever()

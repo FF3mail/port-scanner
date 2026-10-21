@@ -134,6 +134,21 @@ class TestValidatePortsPayload(unittest.TestCase):
         self.assertEqual(ports, [443])
 
 
+class TestListenPortEnv(unittest.TestCase):
+    def test_listen_port_from_env(self) -> None:
+        old = os.environ.get("PORT_SCANNER_LISTEN_PORT")
+        os.environ["PORT_SCANNER_LISTEN_PORT"] = "9090"
+        try:
+            importlib.reload(server_mod)
+            self.assertEqual(server_mod.LISTEN_PORT, 9090)
+        finally:
+            if old is None:
+                os.environ.pop("PORT_SCANNER_LISTEN_PORT", None)
+            else:
+                os.environ["PORT_SCANNER_LISTEN_PORT"] = old
+            importlib.reload(server_mod)
+
+
 class TestSecretTokenEnv(unittest.TestCase):
     def test_default_when_env_unset(self) -> None:
         # Module already imported; default demo secret must remain when env was unset
