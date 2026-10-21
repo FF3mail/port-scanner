@@ -25,6 +25,15 @@ class ServerHttpException(
     message: String,
 ) : IOException(message)
 
+/**
+ * Maps transport-layer failures during POST /scan to [ServerUnreachableException].
+ * HTTP status errors (401/400/…) are handled separately and must not pass through here.
+ */
+internal fun mapPostScanTransportFailure(cause: IOException): IOException = when (cause) {
+    is ConnectException, is SocketTimeoutException, is UnknownHostException -> ServerUnreachableException()
+    else -> cause
+}
+
 class NetworkClient {
 
     suspend fun postScan(ip: String, token: String, ports: List<Int>): ScanResult = withContext(Dispatchers.IO) {
@@ -60,9 +69,11 @@ class NetworkClient {
                 }
             }
         } catch (e: ConnectException) {
-            throw ServerUnreachableException()
+            throw mapPostScanTransportFailure(e)
         } catch (e: SocketTimeoutException) {
-            throw ServerUnreachableException()
+            throw mapPostScanTransportFailure(e)
+        } catch (e: UnknownHostException) {
+            throw mapPostScanTransportFailure(e)
         } finally {
             connection.disconnect()
         }
