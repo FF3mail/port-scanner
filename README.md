@@ -41,6 +41,15 @@ python3 server.py
 
 Сканирование всегда выполняется только на `127.0.0.1` хоста, где запущен `server.py`.
 
+**Мастер-секрет:** по умолчанию `SECRET_TOKEN=my_secret_123` (для совместимости с демо и клиентом). В продакшене задавайте секрет через переменную окружения и **никогда не коммитьте** реальные секреты:
+
+```bash
+export SECRET_TOKEN='your_strong_secret'
+python3 server.py
+```
+
+**Однопоточность (by design):** используется обычный `HTTPServer` без `ThreadingMixIn` (см. `prompts/01_server.md`). Пока обрабатывается один запрос `/scan`, остальные ждут. Худшая задержка ≈ `MAX_PORTS * SCAN_TIMEOUT` (30 × 1 с), если много портов закрыты/фильтруются.
+
 ### Android-клиент
 
 **Требования:** Android 8+ (minSdk 26), Android Studio, JDK 17.
@@ -66,7 +75,7 @@ python3 server.py
 
 ## Авторизация (временной Bearer-токен)
 
-Общий мастер-секрет в коде: `SECRET_TOKEN = "my_secret_123"`. В заголовке HTTP передаётся **не** он сам, а производный токен:
+Общий мастер-секрет по умолчанию: `SECRET_TOKEN = "my_secret_123"` (или значение из env `SECRET_TOKEN` на сервере). В заголовке HTTP передаётся **не** он сам, а производный токен:
 
 ```
 Authorization: Bearer <time_limited_token>
@@ -97,11 +106,21 @@ Authorization: Bearer <time_limited_token>
 
 ## Проверка сервера
 
+Юнит-тесты (без сети и без запущенного сервера):
+
+```bash
+python -m pytest tests/ -q
+# или без pytest:
+python scripts/test_server_unit.py
+```
+
 При запущенном `server.py`:
 
 ```bash
 python3 scripts/integration_check.py
 ```
+
+CI (GitHub Actions): `.github/workflows/ci.yml` — юнит-тесты и интеграционный скрипт против сервера на `:8080`.
 
 ## Документация
 

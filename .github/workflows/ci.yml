@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - fix/audit-risks
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  unit-tests:
+    name: Python unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Install pytest
+        run: pip install pytest
+
+      - name: Run unit tests
+        run: python -m pytest tests/ -q
+
+  integration:
+    name: Server integration check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Start server
+        run: |
+          python server/server.py &
+          echo $! > /tmp/port-scanner-server.pid
+
+      - name: Wait for port 8080
+        run: |
+          for i in $(seq 1 30); do
+            if python -c 'import socket; s=socket.create_connection(("127.0.0.1", 8080), 1); s.close()'; then
+              echo "Server is up"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Server did not become ready on :8080" >&2
+          exit 1
+
+      - name: Run integration check
+        run: python scripts/integration_check.py
+
+      - name: Stop server
+        if: always()
+        run: |
+          if [ -f /tmp/port-scanner-server.pid ]; then
+            kill "$(cat /tmp/port-scanner-server.pid)" || true
+          fi
