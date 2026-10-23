@@ -24,13 +24,15 @@ APK: `app/build/outputs/apk/debug/app-debug.apk`
 
 ## Usage
 
-1. Start the Python server on the host machine (`python3 server.py` in `server/`).
-2. In the app, enter server IP, token (`my_secret_123` by default), and ports (e.g. `22, 80, 443`).
-3. Tap **Запустить проверку**.
+1. Deploy the Python server behind a **TLS-terminating reverse proxy** that forwards to the plain HTTP backend (see `server/DEPLOY_LINUX.md`). The hostname in the certificate must be trusted by Android (public CA or a CA installed on the device).
+2. In the app, enter **server hostname or IP** (without `https://`), optional **HTTPS port** (default **443** if left empty), master secret token, and ports to scan (e.g. `22, 80, 443`).
+3. Tap **Запустить проверку**. The client calls `POST https://<host>:<port>/scan` using the platform TLS stack (standard certificate and hostname verification).
 4. Grant notification permission on Android 13+ when prompted.
 5. Read the comparison in the system notification.
 
-Device and server must be on a network where HTTP port 8080 is reachable.
+This app does **not** configure the reverse proxy or server TLS. Remote HTTPS scans succeed only after that infrastructure is in place. There is **no** automatic fallback to cleartext HTTP when HTTPS fails.
+
+**Release builds:** `AndroidManifest.xml` still sets `android:usesCleartextTraffic="true"` for local development convenience. Restricting cleartext in release builds is a separate follow-up (network security config).
 
 ## HTTP timeouts (`NetworkClient`)
 

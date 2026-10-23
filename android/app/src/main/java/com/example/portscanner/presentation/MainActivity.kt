@@ -20,7 +20,8 @@ class MainActivity : AppCompatActivity() {
 
     private val viewModel: ScanViewModel by viewModels()
 
-    private lateinit var editServerIp: EditText
+    private lateinit var editServerHost: EditText
+    private lateinit var editServerHttpsPort: EditText
     private lateinit var editToken: EditText
     private lateinit var editPorts: EditText
     private lateinit var buttonStartScan: Button
@@ -54,7 +55,8 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        editServerIp = findViewById(R.id.editServerIp)
+        editServerHost = findViewById(R.id.editServerHost)
+        editServerHttpsPort = findViewById(R.id.editServerHttpsPort)
         editToken = findViewById(R.id.editToken)
         editPorts = findViewById(R.id.editPorts)
         buttonStartScan = findViewById(R.id.buttonStartScan)
@@ -62,7 +64,8 @@ class MainActivity : AppCompatActivity() {
 
         buttonStartScan.setOnClickListener {
             viewModel.startScan(
-                editServerIp.text.toString(),
+                editServerHost.text.toString(),
+                editServerHttpsPort.text.toString(),
                 editToken.text.toString(),
                 editPorts.text.toString(),
             )
