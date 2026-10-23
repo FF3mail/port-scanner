@@ -188,6 +188,7 @@ assert_secret_file_permissions(Path(sys.argv[1]))
   port_scanner_ensure_state_dir
   (
     cd "${PORT_SCANNER_REPO_ROOT}"
+    export PORT_SCANNER_LISTEN_HOST="${PORT_SCANNER_LISTEN_HOST}"
     export PORT_SCANNER_LISTEN_PORT="${PORT_SCANNER_LISTEN_PORT}"
     nohup python3 "${PORT_SCANNER_SERVER_PY}" >>"${PORT_SCANNER_LOG_FILE}" 2>&1 &
     echo $! > "${PORT_SCANNER_PID_FILE}"

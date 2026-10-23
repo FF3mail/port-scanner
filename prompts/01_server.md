@@ -6,7 +6,8 @@ server.py
 ## Жёсткие требования
 - Только стандартная библиотека: http.server, socket, json, signal, sys, hashlib, time, os
 - Однопоточный HTTPServer (запрещено использовать ThreadingMixIn)
-- Порт: 8080
+- Порт: 8080 (или `PORT_SCANNER_LISTEN_PORT`)
+- Адрес привязки: `PORT_SCANNER_LISTEN_HOST` — не задан/пусто = все интерфейсы; `127.0.0.1` или другой IPv4; `0.0.0.0` явно = все интерфейсы; неверное значение → выход с ошибкой
 - Запуск: python3 server.py
 - Корректное завершение по Ctrl+C (обработчик SIGINT)
 
