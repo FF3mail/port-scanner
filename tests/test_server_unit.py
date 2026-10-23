@@ -134,6 +134,21 @@ class TestValidatePortsPayload(unittest.TestCase):
         self.assertEqual(ports, [443])
 
 
+class TestListenHostEnv(unittest.TestCase):
+    def test_listen_host_from_env(self) -> None:
+        old = os.environ.get("PORT_SCANNER_LISTEN_HOST")
+        os.environ["PORT_SCANNER_LISTEN_HOST"] = "127.0.0.1"
+        try:
+            importlib.reload(server_mod)
+            self.assertEqual(server_mod.LISTEN_HOST, "127.0.0.1")
+        finally:
+            if old is None:
+                os.environ.pop("PORT_SCANNER_LISTEN_HOST", None)
+            else:
+                os.environ["PORT_SCANNER_LISTEN_HOST"] = old
+            importlib.reload(server_mod)
+
+
 class TestListenPortEnv(unittest.TestCase):
     def test_listen_port_from_env(self) -> None:
         old = os.environ.get("PORT_SCANNER_LISTEN_PORT")

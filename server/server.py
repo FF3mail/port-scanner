@@ -21,9 +21,53 @@ TOKEN_VALIDITY_SECONDS = 6 * 3600  # окно действия Bearer-токен
 SCAN_TIMEOUT = 1.0  # секунды на один порт
 MAX_PORTS = 30  # жёсткий лимит количества портов
 
-LISTEN_HOST = ""  # все интерфейсы
 LISTEN_PORT = int(os.environ.get("PORT_SCANNER_LISTEN_PORT", "8080"))
 SCAN_HOST = "127.0.0.1"
+
+
+def parse_listen_host(raw: str | None = None) -> str:
+    """
+    Parse PORT_SCANNER_LISTEN_HOST for HTTPServer bind address.
+
+    Empty string (unset or explicit empty) binds all IPv4 interfaces (same as 0.0.0.0).
+    Raises ValueError for malformed values.
+    """
+    if raw is None:
+        raw = os.environ.get("PORT_SCANNER_LISTEN_HOST", "")
+    value = raw.strip()
+    if value == "":
+        return ""
+    if value == "0.0.0.0":
+        return ""
+    if any(ch.isspace() for ch in value):
+        raise ValueError(
+            f"Invalid PORT_SCANNER_LISTEN_HOST: '{raw}' "
+            "(use unset, empty, 0.0.0.0, or an IPv4 address such as 127.0.0.1)"
+        )
+    try:
+        socket.inet_aton(value)
+    except OSError:
+        raise ValueError(
+            f"Invalid PORT_SCANNER_LISTEN_HOST: '{raw}' "
+            "(use unset, empty, 0.0.0.0, or an IPv4 address such as 127.0.0.1)"
+        )
+    return value
+
+
+def _load_listen_host() -> str:
+    try:
+        return parse_listen_host()
+    except ValueError as exc:
+        sys.stderr.write(f"{exc}\n")
+        raise SystemExit(2) from exc
+
+
+LISTEN_HOST = _load_listen_host()
+
+
+def reported_bind_host(bind_host: str) -> str:
+    """Normalize bind host for logging/tests (empty means all interfaces)."""
+    return bind_host if bind_host else "0.0.0.0"
 
 
 def scan_port(port: int) -> str:

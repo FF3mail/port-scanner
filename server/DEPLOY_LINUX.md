@@ -11,6 +11,8 @@ This document describes the **supported manual deployment** for the port-scanner
 
 **Security:** The server uses **plain HTTP**. SSH protects administration only; Bearer tokens on the wire are not encrypted. Use a trusted network or place TLS in front of the service separately.
 
+For TLS termination (reverse proxy on the same host), bind the Python backend to **loopback only** (`PORT_SCANNER_LISTEN_HOST=127.0.0.1`) and use host firewall rules so clients cannot reach the backend port directly—only the TLS front end (for example `:443`) should be exposed on the network.
+
 ## One-time setup
 
 1. Clone or install the repository (e.g. `/opt/port-scanner`).
@@ -88,8 +90,8 @@ Users must enter the **new master secret** in the app (the app derives the 6-hou
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `PORT_SCANNER_STATE_DIR` | `/var/lib/port-scanner` | Config and PID files |
-| `PORT_SCANNER_LISTEN_PORT` | `8080` | HTTP port (`PORT_SCANNER_LISTEN_PORT` in server) |
-| `PORT_SCANNER_LISTEN_HOST` | `127.0.0.1` | Host for readiness/verify probes |
+| `PORT_SCANNER_LISTEN_PORT` | `8080` | HTTP port (server bind and probes) |
+| `PORT_SCANNER_LISTEN_HOST` | `127.0.0.1` in ctl defaults; **unset/empty** in direct `python3 server/server.py` | IPv4 bind address for `HTTPServer`. Unset or empty = all interfaces (`0.0.0.0`). Use `127.0.0.1` behind a TLS reverse proxy. Also used for readiness/rotation probes. |
 | `PORT_SCANNER_ALLOW_DEMO_SECRET` | `0` | Set to `1` to allow demo secret in `secret.env` |
 | `PORT_SCANNER_TEST_VERIFY_FAIL` | `0` | **Tests only** — force verify failure |
 | `PORT_SCANNER_TEST_CUSTOM_SECRET` | unset | **Tests only** — inject custom secret (skips prompt) |
