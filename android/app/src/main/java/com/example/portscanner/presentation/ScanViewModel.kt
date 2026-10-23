@@ -5,6 +5,7 @@ import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.portscanner.data.NetworkClient
+import com.example.portscanner.data.ScanEndpointParser
 import com.example.portscanner.data.ServerHttpException
 import com.example.portscanner.data.ServerUnreachableException
 import com.example.portscanner.data.UnauthorizedException
@@ -36,15 +37,22 @@ class ScanViewModel(
         _uiEvent.value = null
     }
 
-    fun startScan(serverIp: String, token: String, portsInput: String) {
+    fun startScan(
+        serverHost: String,
+        serverHttpsPort: String,
+        token: String,
+        portsInput: String,
+    ) {
         if (_isLoading.value == true) {
             return
         }
 
-        val ip = serverIp.trim()
-        if (ip.isEmpty()) {
-            emitToast("Введите IP или домен сервера")
-            return
+        val endpoint = when (val endpointResult = ScanEndpointParser.parse(serverHost, serverHttpsPort)) {
+            is ScanEndpointParser.Result.Error -> {
+                emitToast(endpointResult.message)
+                return
+            }
+            is ScanEndpointParser.Result.Ok -> endpointResult.endpoint
         }
 
         if (token.isBlank()) {
@@ -65,9 +73,9 @@ class ScanViewModel(
         viewModelScope.launch {
             _isLoading.value = true
             try {
-                val serverDeferred = async { networkClient.postScan(ip, token.trim(), ports) }
+                val serverDeferred = async { networkClient.postScan(endpoint, token.trim(), ports) }
                 val clientDeferred = async {
-                    runCatching { networkClient.scanPorts(ip, ports) }
+                    runCatching { networkClient.scanPorts(endpoint, ports) }
                 }
 
                 val serverResult = try {
