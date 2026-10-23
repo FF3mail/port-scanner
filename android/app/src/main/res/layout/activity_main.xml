@@ -6,11 +6,20 @@
     android:padding="16dp">
 
     <EditText
-        android:id="@+id/editServerIp"
+        android:id="@+id/editServerHost"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:hint="@string/hint_server_ip"
+        android:hint="@string/hint_server_host"
         android:inputType="textUri"
+        android:importantForAutofill="no" />
+
+    <EditText
+        android:id="@+id/editServerHttpsPort"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:hint="@string/hint_server_https_port"
+        android:inputType="number"
         android:importantForAutofill="no" />
 
     <EditText

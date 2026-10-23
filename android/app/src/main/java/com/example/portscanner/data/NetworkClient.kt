@@ -15,6 +15,7 @@ import java.net.SocketTimeoutException
 import java.net.URL
 import java.net.UnknownHostException
 import java.security.MessageDigest
+import javax.net.ssl.SSLException
 
 class ServerUnreachableException : IOException("Server unreachable")
 
@@ -30,70 +31,76 @@ class ServerHttpException(
  * HTTP status errors (401/400/…) are handled separately and must not pass through here.
  */
 internal fun mapPostScanTransportFailure(cause: IOException): IOException = when (cause) {
-    is ConnectException, is SocketTimeoutException, is UnknownHostException -> ServerUnreachableException()
+    is ConnectException, is SocketTimeoutException, is UnknownHostException, is SSLException ->
+        ServerUnreachableException()
     else -> cause
 }
 
 class NetworkClient {
 
-    suspend fun postScan(ip: String, token: String, ports: List<Int>): ScanResult = withContext(Dispatchers.IO) {
-        val connection = openPostConnection(ip)
-        try {
-            val bearerToken = generateTimeLimitedToken(token)
-            connection.setRequestProperty("Authorization", "Bearer $bearerToken")
-            connection.setRequestProperty("Content-Type", "application/json; charset=utf-8")
-            connection.doOutput = true
+    suspend fun postScan(endpoint: ScanEndpoint, token: String, ports: List<Int>): ScanResult =
+        withContext(Dispatchers.IO) {
+            val connection = openPostConnection(endpoint)
+            try {
+                val bearerToken = generateTimeLimitedToken(token)
+                connection.setRequestProperty("Authorization", "Bearer $bearerToken")
+                connection.setRequestProperty("Content-Type", "application/json; charset=utf-8")
+                connection.doOutput = true
 
-            val requestJson = JSONObject().put("ports", JSONArray(ports))
-            connection.outputStream.use { stream ->
-                val bytes = requestJson.toString().toByteArray(Charsets.UTF_8)
-                stream.write(bytes)
+                val requestJson = JSONObject().put("ports", JSONArray(ports))
+                connection.outputStream.use { stream ->
+                    val bytes = requestJson.toString().toByteArray(Charsets.UTF_8)
+                    stream.write(bytes)
+                }
+
+                val statusCode = connection.responseCode
+                when (statusCode) {
+                    HttpURLConnection.HTTP_OK -> {
+                        val body = connection.inputStream.bufferedReader().use { it.readText() }
+                        ScanResult(parseResults(body, ports))
+                    }
+                    HttpURLConnection.HTTP_UNAUTHORIZED -> throw UnauthorizedException()
+                    HttpURLConnection.HTTP_BAD_REQUEST,
+                    HttpURLConnection.HTTP_INTERNAL_ERROR,
+                    -> {
+                        val errorMessage = readErrorMessage(connection)
+                        throw ServerHttpException(statusCode, errorMessage)
+                    }
+                    else -> {
+                        val errorMessage = readErrorMessage(connection)
+                        throw ServerHttpException(statusCode, errorMessage)
+                    }
+                }
+            } catch (e: ConnectException) {
+                throw mapPostScanTransportFailure(e)
+            } catch (e: SocketTimeoutException) {
+                throw mapPostScanTransportFailure(e)
+            } catch (e: UnknownHostException) {
+                throw mapPostScanTransportFailure(e)
+            } catch (e: SSLException) {
+                throw mapPostScanTransportFailure(e)
+            } finally {
+                connection.disconnect()
             }
+        }
 
-            val statusCode = connection.responseCode
-            when (statusCode) {
-                HttpURLConnection.HTTP_OK -> {
-                    val body = connection.inputStream.bufferedReader().use { it.readText() }
-                    ScanResult(parseResults(body, ports))
-                }
-                HttpURLConnection.HTTP_UNAUTHORIZED -> throw UnauthorizedException()
-                HttpURLConnection.HTTP_BAD_REQUEST,
-                HttpURLConnection.HTTP_INTERNAL_ERROR,
-                -> {
-                    val errorMessage = readErrorMessage(connection)
-                    throw ServerHttpException(statusCode, errorMessage)
-                }
-                else -> {
-                    val errorMessage = readErrorMessage(connection)
-                    throw ServerHttpException(statusCode, errorMessage)
-                }
+    suspend fun scanPorts(endpoint: ScanEndpoint, ports: List<Int>): Map<Int, String> =
+        withContext(Dispatchers.IO) {
+            val socketHost = endpoint.socketHost()
+            try {
+                InetAddress.getByName(socketHost)
+            } catch (e: UnknownHostException) {
+                throw e
             }
-        } catch (e: ConnectException) {
-            throw mapPostScanTransportFailure(e)
-        } catch (e: SocketTimeoutException) {
-            throw mapPostScanTransportFailure(e)
-        } catch (e: UnknownHostException) {
-            throw mapPostScanTransportFailure(e)
-        } finally {
-            connection.disconnect()
+            val results = LinkedHashMap<Int, String>()
+            for (port in ports) {
+                results[port] = scanSinglePort(socketHost, port)
+            }
+            results
         }
-    }
 
-    suspend fun scanPorts(ip: String, ports: List<Int>): Map<Int, String> = withContext(Dispatchers.IO) {
-        try {
-            InetAddress.getByName(ip)
-        } catch (e: UnknownHostException) {
-            throw e
-        }
-        val results = LinkedHashMap<Int, String>()
-        for (port in ports) {
-            results[port] = scanSinglePort(ip, port)
-        }
-        results
-    }
-
-    private fun openPostConnection(ip: String): HttpURLConnection {
-        val url = URL("http://$ip:8080/scan")
+    private fun openPostConnection(endpoint: ScanEndpoint): HttpURLConnection {
+        val url = URL(endpoint.scanUrlString())
         val connection = url.openConnection() as HttpURLConnection
         connection.requestMethod = "POST"
         connection.connectTimeout = CONNECT_TIMEOUT_MS.toInt()
@@ -101,10 +108,10 @@ class NetworkClient {
         return connection
     }
 
-    private fun scanSinglePort(ip: String, port: Int): String {
+    private fun scanSinglePort(host: String, port: Int): String {
         return try {
             Socket().use { socket ->
-                socket.connect(InetSocketAddress(ip, port), PORT_TIMEOUT_MS.toInt())
+                socket.connect(InetSocketAddress(host, port), PORT_TIMEOUT_MS.toInt())
                 "OPEN"
             }
         } catch (_: IOException) {
