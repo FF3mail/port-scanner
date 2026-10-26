@@ -10,10 +10,10 @@ data class ScanEndpoint(
     val host: String,
     val httpsPort: Int,
 ) {
-    fun scanUrlString(): String = buildHttpsScanUrl(host, httpsPort)
+    fun scanUrlString(): String = ScanEndpointParser.buildHttpsScanUrl(host, httpsPort)
 
     /** Host string suitable for TCP client-side checks (no URI brackets). */
-    fun socketHost(): String = hostForUri(host)
+    fun socketHost(): String = ScanEndpointParser.hostForUri(host)
 }
 
 object ScanEndpointParser {
