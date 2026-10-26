@@ -7,6 +7,7 @@ import java.io.IOException
 import java.net.ConnectException
 import java.net.SocketTimeoutException
 import java.net.UnknownHostException
+import javax.net.ssl.SSLHandshakeException
 
 class NetworkClientPostScanTransportFailureTest {
 
@@ -25,6 +26,12 @@ class NetworkClientPostScanTransportFailureTest {
     @Test
     fun socketTimeoutException_mapsToServerUnreachable() {
         val mapped = mapPostScanTransportFailure(SocketTimeoutException("timed out"))
+        assertTrue(mapped is ServerUnreachableException)
+    }
+
+    @Test
+    fun sslHandshakeException_mapsToServerUnreachable() {
+        val mapped = mapPostScanTransportFailure(SSLHandshakeException("cert"))
         assertTrue(mapped is ServerUnreachableException)
     }
 
