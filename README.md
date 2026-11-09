@@ -133,6 +133,7 @@ CI (GitHub Actions): `.github/workflows/ci.yml` — юнит-тесты и ин�
 
 | Файл | Содержание |
 |------|------------|
+| [ARCHITECTURE.md](ARCHITECTURE.md) | Утверждённая владельцем архитектура системы (авторитетный источник) |
 | [ROADMAP.md](ROADMAP.md) | План разработки и чеклист |
 | [prompts/00_overview.md](prompts/00_overview.md) | Общий контракт API |
 | [prompts/01_server.md](prompts/01_server.md) | Спецификация сервера |
